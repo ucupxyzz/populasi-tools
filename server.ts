@@ -1,5 +1,6 @@
-import app from "./src/server/app";
+import app from "./api/index";
 import path from "path";
+import express from "express";
 
 const PORT = 3000;
 
@@ -23,8 +24,5 @@ async function startServer() {
     console.log(`Server running on http://localhost:${PORT}`);
   });
 }
-
-// In case express is needed for static serving
-import express from "express";
 
 startServer();
