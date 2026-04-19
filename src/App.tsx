@@ -12,29 +12,67 @@ import {
 import { 
   Search, Filter, ChevronDown, Download, Wrench, AlertTriangle, 
   CheckCircle, HelpCircle, LayoutDashboard, Database, MapPin,
-  Menu, X
+  Menu, X, Plus, Trash2, Save, XCircle
 } from 'lucide-react';
-import { fetchToolData } from './services/dataService';
+import { fetchToolData, addTool, deleteTool } from './services/dataService';
 import { ToolData, JobsiteStats } from './types';
 import { cn } from './lib/utils';
 
 export default function App() {
   const [data, setData] = useState<ToolData[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [filterJobsite, setFilterJobsite] = useState<string>('All Jobsites');
   const [searchTerm, setSearchTerm] = useState('');
   const [view, setView] = useState<'dashboard' | 'table'>('dashboard');
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+  const [notification, setNotification] = useState<{message: string, type: 'success' | 'error'} | null>(null);
 
-  useEffect(() => {
-    async function loadData() {
-      setLoading(true);
+  const loadData = async () => {
+    setLoading(true);
+    setError(null);
+    try {
       const result = await fetchToolData();
       setData(result);
+    } catch (err: any) {
+      setError(err.message);
+    } finally {
       setLoading(false);
     }
+  };
+
+  useEffect(() => {
     loadData();
   }, []);
+
+  const showNotification = (message: string, type: 'success' | 'error') => {
+    setNotification({ message, type });
+    setTimeout(() => setNotification(null), 3000);
+  };
+
+  const handleAddTool = async (newTool: any) => {
+    const success = await addTool(newTool);
+    if (success) {
+      showNotification('Tool added successfully!', 'success');
+      setIsAddModalOpen(false);
+      loadData();
+    } else {
+      showNotification('Failed to add tool. Check credentials.', 'error');
+    }
+  };
+
+  const handleDeleteTool = async (rowIdx: number) => {
+    if (!window.confirm('Are you sure you want to delete this tool?')) return;
+    
+    const success = await deleteTool(rowIdx);
+    if (success) {
+      showNotification('Tool deleted successfully!', 'success');
+      loadData();
+    } else {
+      showNotification('Failed to delete tool. Check credentials.', 'error');
+    }
+  };
 
   // Close sidebar when clicking outside or switching sites on mobile
   const selectSite = (site: string) => {
@@ -115,7 +153,11 @@ export default function App() {
         <div className="flex items-center justify-between mb-8">
           <div className="flex items-center gap-3">
             <div className="w-8 h-8 bg-accent rounded-md flex items-center justify-center">
-              <LayoutDashboard size={18} />
+              <Plus 
+                size={18} 
+                className="cursor-pointer hover:scale-110 transition-transform" 
+                onClick={() => setIsAddModalOpen(true)}
+              />
             </div>
             <span className="text-xl font-bold tracking-tight">EquipTrack</span>
           </div>
@@ -124,6 +166,16 @@ export default function App() {
             onClick={() => setIsSidebarOpen(false)}
           >
             <X size={20} />
+          </button>
+        </div>
+
+        <div className="mb-6">
+          <button
+            onClick={() => setIsAddModalOpen(true)}
+            className="w-full flex items-center justify-center gap-2 py-2.5 bg-accent hover:bg-blue-600 text-white rounded-lg text-sm font-bold transition-all shadow-lg shadow-accent/20"
+          >
+            <Plus size={16} />
+            Input Tool Baru
           </button>
         </div>
 
@@ -204,7 +256,47 @@ export default function App() {
           </div>
         </header>
 
-        <div className="flex-grow overflow-y-auto p-4 sm:p-6 lg:p-8 space-y-6 lg:space-y-8">
+        <div className="flex-grow overflow-y-auto p-4 sm:p-6 lg:p-8 space-y-6 lg:space-y-8 relative">
+          {error && (
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              className="p-6 bg-rose-50 border border-rose-100 rounded-2xl flex items-start gap-4"
+            >
+              <div className="p-2 bg-rose-100 text-rose-600 rounded-lg">
+                <AlertTriangle size={24} />
+              </div>
+              <div>
+                <h3 className="text-rose-900 font-bold">Koneksi Spreadsheet Gagal</h3>
+                <p className="text-rose-600 text-sm mt-1">{error}</p>
+                <div className="mt-4 flex gap-3">
+                  <button 
+                    onClick={loadData}
+                    className="px-4 py-2 bg-rose-600 text-white text-xs font-bold rounded-lg hover:bg-rose-700 transition-colors"
+                  >
+                    Coba Lagi
+                  </button>
+                </div>
+              </div>
+            </motion.div>
+          )}
+          {/* Notification Toast */}
+          <AnimatePresence>
+            {notification && (
+              <motion.div 
+                initial={{ opacity: 0, y: -20 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, scale: 0.95 }}
+                className={cn(
+                  "fixed top-6 right-6 z-[60] px-6 py-3 rounded-xl shadow-2xl flex items-center gap-3 font-bold border",
+                  notification.type === 'success' ? "bg-emerald-500 text-white border-emerald-400" : "bg-rose-500 text-white border-rose-400"
+                )}
+              >
+                {notification.type === 'success' ? <CheckCircle size={20} /> : <XCircle size={20} />}
+                {notification.message}
+              </motion.div>
+            )}
+          </AnimatePresence>
           {/* Mobile Search - Visible only on small screens */}
           <div className="relative sm:hidden">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
@@ -297,6 +389,7 @@ export default function App() {
                           <th className="px-6 py-4 text-[0.7rem] font-bold text-slate-500 uppercase tracking-widest border-b border-slate-100">Location</th>
                           <th className="px-6 py-4 text-[0.7rem] font-bold text-slate-500 uppercase tracking-widest border-b border-slate-100">Condition</th>
                           <th className="px-6 py-4 text-[0.7rem] font-bold text-slate-500 uppercase tracking-widest border-b border-slate-100 text-right">Stock</th>
+                          <th className="px-6 py-4 text-[0.7rem] font-bold text-slate-500 uppercase tracking-widest border-b border-slate-100 text-center">Action</th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-slate-100">
@@ -312,6 +405,15 @@ export default function App() {
                             <td className="px-6 py-4 text-right text-slate-900 font-mono text-xs font-bold bg-slate-50/30">
                               {item.quantity} {item.unit}
                             </td>
+                            <td className="px-6 py-4 text-center">
+                              <button 
+                                onClick={() => item.rowIdx !== undefined && handleDeleteTool(item.rowIdx)}
+                                className="p-2 text-slate-300 hover:text-rose-500 hover:bg-rose-50 rounded-lg transition-all"
+                                title="Delete Tool"
+                              >
+                                <Trash2 size={16} />
+                              </button>
+                            </td>
                           </tr>
                         ))}
                       </tbody>
@@ -323,6 +425,111 @@ export default function App() {
           </section>
         </div>
       </main>
+
+      {/* Add Tool Modal */}
+      <AnimatePresence>
+        {isAddModalOpen && (
+          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+            <motion.div 
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="absolute inset-0 bg-slate-900/60 backdrop-blur-md"
+              onClick={() => setIsAddModalOpen(false)}
+            />
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.9, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.9, y: 20 }}
+              className="relative w-full max-w-2xl bg-white rounded-3xl shadow-2xl overflow-hidden"
+            >
+              <div className="px-8 py-6 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
+                <div>
+                  <h2 className="text-xl font-bold text-slate-900">Input Data Aset</h2>
+                  <p className="text-xs text-slate-500 font-medium tracking-tight">Tambah unit baru ke dalam monitoring spreadsheet</p>
+                </div>
+                <button 
+                  onClick={() => setIsAddModalOpen(false)}
+                  className="p-2 text-slate-400 hover:text-slate-900 hover:bg-white rounded-full transition-all"
+                >
+                  <X size={20} />
+                </button>
+              </div>
+              
+              <form 
+                className="p-8 space-y-6"
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  const formData = new FormData(e.currentTarget);
+                  const newTool = Object.fromEntries(formData.entries());
+                  handleAddTool({
+                    ...newTool,
+                    quantity: parseFloat(newTool.quantity as string) || 1
+                  });
+                }}
+              >
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                  <div className="space-y-1.5">
+                    <label className="text-[10px] uppercase font-bold text-slate-500 tracking-wider">Jobsite</label>
+                    <select name="jobsite" required className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-sm focus:ring-2 focus:ring-accent/20 focus:border-accent">
+                      {jobsites.filter(s => s !== 'All Jobsites').map(s => <option key={s} value={s}>{s}</option>)}
+                    </select>
+                  </div>
+                  <div className="space-y-1.5">
+                    <label className="text-[10px] uppercase font-bold text-slate-500 tracking-wider">Lokasi Details</label>
+                    <input name="location" placeholder="e.g. Workshop A" className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-sm" />
+                  </div>
+                  <div className="space-y-1.5">
+                    <label className="text-[10px] uppercase font-bold text-slate-500 tracking-wider">Kategori Tools</label>
+                    <input name="category" required placeholder="e.g. Power Tools" className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-sm" />
+                  </div>
+                  <div className="space-y-1.5">
+                    <label className="text-[10px] uppercase font-bold text-slate-500 tracking-wider">Nama Alat</label>
+                    <input name="name" required placeholder="e.g. Drill Machine" className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-sm" />
+                  </div>
+                  <div className="space-y-1.5">
+                    <label className="text-[10px] uppercase font-bold text-slate-500 tracking-wider">Brand / Merk</label>
+                    <input name="brand" placeholder="e.g. Bosch" className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-sm" />
+                  </div>
+                  <div className="space-y-1.5">
+                    <label className="text-[10px] uppercase font-bold text-slate-500 tracking-wider">Quantity</label>
+                    <input name="quantity" type="number" defaultValue="1" className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-sm" />
+                  </div>
+                  <div className="space-y-1.5">
+                    <label className="text-[10px] uppercase font-bold text-slate-500 tracking-wider">Unit</label>
+                    <input name="unit" defaultValue="UNIT" placeholder="UNIT" className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-sm" />
+                  </div>
+                  <div className="space-y-1.5">
+                    <label className="text-[10px] uppercase font-bold text-slate-500 tracking-wider">Kondisi Awal</label>
+                    <select name="condition" className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-sm">
+                      <option value="BAIK">Kondisi Baik (Ready)</option>
+                      <option value="RUSAK">Rusak (Maintenance)</option>
+                      <option value="HILANG">Hilang / Idle</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div className="pt-6 border-t border-slate-100 flex gap-3">
+                  <button 
+                    type="button"
+                    onClick={() => setIsAddModalOpen(false)}
+                    className="flex-1 py-3 text-sm font-bold text-slate-500 hover:bg-slate-50 rounded-xl transition-all"
+                  >
+                    Batal
+                  </button>
+                  <button 
+                    type="submit"
+                    className="flex-[2] py-3 bg-accent hover:bg-blue-600 text-white font-bold rounded-xl transition-all shadow-lg shadow-accent/20 flex items-center justify-center gap-2"
+                  >
+                    <Save size={18} />
+                    Simpan Ke Spreadsheet
+                  </button>
+                </div>
+              </form>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }

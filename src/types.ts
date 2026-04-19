@@ -1,4 +1,5 @@
 export interface ToolData {
+  rowIdx?: number;
   no: string;
   jobsite: string;
   location: string;
