@@ -3,10 +3,22 @@ import { ToolData } from '../types';
 export async function fetchToolData(): Promise<ToolData[]> {
   try {
     const response = await fetch('/api/tools');
+    
+    // Cek apakah responnya sukses dan tipenya JSON
+    const contentType = response.headers.get('content-type');
+    if (!contentType || !contentType.includes('application/json')) {
+      const text = await response.text();
+      // Jika yang diterima adalah HTML (biasanya diawali <), tampilkan pesan ramah
+      if (text.trim().startsWith('<')) {
+        throw new Error('Server mengirimkan halaman HTML, bukan data. Ini biasanya terjadi jika router API di Vercel belum aktif.');
+      }
+      throw new Error(`Server mengirimkan format yang salah (${contentType}): ${text.substring(0, 50)}...`);
+    }
+
     const dataRows = await response.json();
 
     if (!response.ok) {
-      throw new Error(dataRows.error || 'Failed to fetch tools');
+      throw new Error(dataRows.error || 'Gagal mengambil data dari Google Sheets');
     }
     
     if (!Array.isArray(dataRows)) {
