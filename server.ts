@@ -139,32 +139,23 @@ app.delete("/api/tools/:rowIdx", async (req, res) => {
 });
 
 // --- VITE SETUP ---
-async function startServer() {
-  if (process.env.NODE_ENV !== "production") {
-    // Muat Vite secara dinamis hanya saat pengembangan
-    const { createServer: createViteServer } = await import("vite");
-    const vite = await createViteServer({
-      server: { middlewareMode: true },
-      appType: "spa",
-    });
-    app.use(vite.middlewares);
-  } else {
-    const distPath = path.join(process.cwd(), "dist");
-    app.use(express.static(distPath));
-    app.get("*", (req, res) => {
-      res.sendFile(path.join(distPath, "index.html"));
-    });
-  }
-
-  // Hanya jalankan listen jika tidak di lingkungan Vercel
-  if (!process.env.VERCEL) {
-    app.listen(PORT, "0.0.0.0", () => {
-      console.log(`Server running on http://localhost:${PORT}`);
-    });
-  }
+if (process.env.NODE_ENV !== "production") {
+  startServer();
 }
 
-startServer();
+async function startServer() {
+  // Muat Vite secara dinamis hanya saat pengembangan
+  const { createServer: createViteServer } = await import("vite");
+  const vite = await createViteServer({
+    server: { middlewareMode: true },
+    appType: "spa",
+  });
+  app.use(vite.middlewares);
+
+  app.listen(PORT, "0.0.0.0", () => {
+    console.log(`Server running on http://localhost:${PORT}`);
+  });
+}
 
 // Ekspor app untuk digunakan oleh Vercel
 export default app;
