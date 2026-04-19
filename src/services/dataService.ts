@@ -39,22 +39,22 @@ export async function fetchToolData(): Promise<ToolData[]> {
         else if (row[15] && row[15].includes('ü')) condition = 'HILANG';
 
         return {
-          rowIdx: originalIndex, // Use the actual index in dataRows for precise deletion
-          no: row[0],
-          jobsite: row[1]?.trim(),
-          location: row[2],
-          category: row[3],
-          name: row[4],
-          specification: row[5],
+          rowIdx: originalIndex,
+          no: row[0] || '',
+          jobsite: (row[1] || '').trim(),
+          location: row[2] || '',
+          category: row[3] || '',
+          name: row[4] || '',
+          specification: row[5] || '',
           quantity: parseFloat(row[6]) || 0,
-          unit: row[7],
-          brand: row[8],
-          supplyDate: row[9],
-          registerNo: row[10],
-          status: row[11],
-          certifiedBy: row[12],
+          unit: row[7] || '',
+          brand: row[8] || '',
+          supplyDate: row[9] || '',
+          registerNo: row[10] || '',
+          status: row[11] || '',
+          certifiedBy: row[12] || '',
           condition,
-          remarks: row[16]
+          remarks: row[16] || ''
         };
       });
     
@@ -65,28 +65,40 @@ export async function fetchToolData(): Promise<ToolData[]> {
   }
 }
 
-export async function addTool(tool: Omit<ToolData, 'rowIdx' | 'no'>): Promise<boolean> {
+export async function addTool(tool: Omit<ToolData, 'rowIdx' | 'no'>): Promise<{ success: boolean; error?: string }> {
   try {
     const response = await fetch('/api/tools', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(tool)
     });
-    return response.ok;
-  } catch (error) {
+    
+    if (!response.ok) {
+      const data = await response.json();
+      return { success: false, error: data.error || 'Gagal menambahkan data' };
+    }
+    
+    return { success: true };
+  } catch (error: any) {
     console.error('Error adding tool:', error);
-    return false;
+    return { success: false, error: error.message || 'Koneksi ke server gagal' };
   }
 }
 
-export async function deleteTool(rowIdx: number): Promise<boolean> {
+export async function deleteTool(rowIdx: number): Promise<{ success: boolean; error?: string }> {
   try {
     const response = await fetch(`/api/tools/${rowIdx}`, {
       method: 'DELETE'
     });
-    return response.ok;
-  } catch (error) {
+    
+    if (!response.ok) {
+      const data = await response.json();
+      return { success: false, error: data.error || 'Terjadi kesalahan sistem' };
+    }
+    
+    return { success: true };
+  } catch (error: any) {
     console.error('Error deleting tool:', error);
-    return false;
+    return { success: false, error: error.message || 'Koneksi ke server gagal' };
   }
 }

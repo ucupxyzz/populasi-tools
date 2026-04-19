@@ -105,19 +105,38 @@ app.delete("/api/tools/:rowIdx", async (req, res) => {
   try {
     if (!auth) throw new Error("Kredensial belum dikonfigurasi.");
     const rowIdx = parseInt(req.params.rowIdx);
+    
+    // Ambil metadata spreadsheet untuk mendapatkan sheetId yang benar
+    const spreadsheet = await sheets.spreadsheets.get({
+      spreadsheetId: SPREADSHEET_ID,
+    });
+    
+    const sheetId = spreadsheet.data.sheets?.[0]?.properties?.sheetId;
+    
+    if (sheetId === undefined || sheetId === null) {
+      throw new Error("Tidak dapat menemukan ID Lembar (Sheet ID).");
+    }
+
     await sheets.spreadsheets.batchUpdate({
       spreadsheetId: SPREADSHEET_ID,
       requestBody: {
         requests: [{
           deleteDimension: {
-            range: { sheetId: 0, dimension: "ROWS", startIndex: rowIdx, endIndex: rowIdx + 1 }
+            range: { 
+              sheetId: sheetId, 
+              dimension: "ROWS", 
+              startIndex: rowIdx, 
+              endIndex: rowIdx + 1 
+            }
           }
         }]
       },
     });
+    
     res.json({ success: true });
   } catch (error: any) {
-    res.status(500).json({ error: error.message });
+    console.error("Delete Error:", error.message);
+    res.status(500).json({ error: error.message || "Gagal menghapus data dari Google Sheets" });
   }
 });
 

@@ -52,25 +52,25 @@ export default function App() {
   };
 
   const handleAddTool = async (newTool: any) => {
-    const success = await addTool(newTool);
-    if (success) {
+    const result = await addTool(newTool);
+    if (result.success) {
       showNotification('Tool added successfully!', 'success');
       setIsAddModalOpen(false);
       loadData();
     } else {
-      showNotification('Failed to add tool. Check credentials.', 'error');
+      showNotification(result.error || 'Failed to add tool.', 'error');
     }
   };
 
   const handleDeleteTool = async (rowIdx: number) => {
     if (!window.confirm('Are you sure you want to delete this tool?')) return;
     
-    const success = await deleteTool(rowIdx);
-    if (success) {
+    const result = await deleteTool(rowIdx);
+    if (result.success) {
       showNotification('Tool deleted successfully!', 'success');
       loadData();
     } else {
-      showNotification('Failed to delete tool. Check credentials.', 'error');
+      showNotification(result.error || 'Failed to delete tool.', 'error');
     }
   };
 
@@ -90,10 +90,16 @@ export default function App() {
   const filteredData = useMemo(() => {
     return data.filter(item => {
       const matchJobsite = filterJobsite === 'All Jobsites' || item.jobsite === filterJobsite;
+      
+      const safeName = (item.name || '').toLowerCase();
+      const safeBrand = (item.brand || '').toLowerCase();
+      const safeCategory = (item.category || '').toLowerCase();
+      const safeSearch = (searchTerm || '').toLowerCase();
+
       const matchSearch = searchTerm === '' || 
-        item.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        item.brand.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        item.category.toLowerCase().includes(searchTerm.toLowerCase());
+        safeName.includes(safeSearch) ||
+        safeBrand.includes(safeSearch) ||
+        safeCategory.includes(safeSearch);
       return matchJobsite && matchSearch;
     });
   }, [data, filterJobsite, searchTerm]);
