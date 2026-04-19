@@ -11,7 +11,8 @@ import {
 } from 'recharts';
 import { 
   Search, Filter, ChevronDown, Download, Wrench, AlertTriangle, 
-  CheckCircle, HelpCircle, LayoutDashboard, Database, MapPin
+  CheckCircle, HelpCircle, LayoutDashboard, Database, MapPin,
+  Menu, X
 } from 'lucide-react';
 import { fetchToolData } from './services/dataService';
 import { ToolData, JobsiteStats } from './types';
@@ -23,6 +24,7 @@ export default function App() {
   const [filterJobsite, setFilterJobsite] = useState<string>('All Jobsites');
   const [searchTerm, setSearchTerm] = useState('');
   const [view, setView] = useState<'dashboard' | 'table'>('dashboard');
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
 
   useEffect(() => {
     async function loadData() {
@@ -33,6 +35,14 @@ export default function App() {
     }
     loadData();
   }, []);
+
+  // Close sidebar when clicking outside or switching sites on mobile
+  const selectSite = (site: string) => {
+    setFilterJobsite(site);
+    if (window.innerWidth < 1024) {
+      setIsSidebarOpen(false);
+    }
+  };
 
   const jobsites = useMemo(() => {
     const sites = Array.from(new Set(data.map(item => item.jobsite))).filter(Boolean);
@@ -78,7 +88,7 @@ export default function App() {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-screen bg-slate-100 text-slate-900 font-sans">
+      <div className="flex items-center justify-center h-screen bg-slate-100 text-slate-900 font-sans p-6 text-center">
         <div className="flex flex-col items-center gap-4">
           <Database className="animate-spin text-accent" size={40} />
           <p className="text-sm font-medium text-slate-500 uppercase tracking-widest">Loading Tool Data...</p>
@@ -88,17 +98,36 @@ export default function App() {
   }
 
   return (
-    <div className="flex h-screen w-screen overflow-hidden bg-slate-100 font-sans">
+    <div className="flex h-screen w-screen overflow-hidden bg-slate-100 font-sans relative">
+      {/* Mobile Backdrop */}
+      {isSidebarOpen && (
+        <div 
+          className="lg:hidden fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-40"
+          onClick={() => setIsSidebarOpen(false)}
+        />
+      )}
+
       {/* Sidebar */}
-      <aside className="w-[240px] bg-slate-800 text-white p-6 flex flex-col flex-shrink-0">
-        <div className="flex items-center gap-3 mb-8">
-          <div className="w-8 h-8 bg-accent rounded-md flex items-center justify-center">
-            <LayoutDashboard size={18} />
+      <aside className={cn(
+        "fixed lg:relative w-[240px] bg-slate-800 text-white p-6 flex flex-col flex-shrink-0 h-full transition-transform duration-300 z-50",
+        isSidebarOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"
+      )}>
+        <div className="flex items-center justify-between mb-8">
+          <div className="flex items-center gap-3">
+            <div className="w-8 h-8 bg-accent rounded-md flex items-center justify-center">
+              <LayoutDashboard size={18} />
+            </div>
+            <span className="text-xl font-bold tracking-tight">EquipTrack</span>
           </div>
-          <span className="text-xl font-bold tracking-tight">EquipTrack</span>
+          <button 
+            className="lg:hidden p-1 hover:bg-white/10 rounded-md transition-colors"
+            onClick={() => setIsSidebarOpen(false)}
+          >
+            <X size={20} />
+          </button>
         </div>
 
-        <div className="flex-grow">
+        <div className="flex-grow overflow-y-auto pr-2 custom-scrollbar">
           <span className="text-[0.75rem] uppercase font-semibold text-slate-400 tracking-wider mb-4 block">
             Jobsite Locations
           </span>
@@ -106,7 +135,7 @@ export default function App() {
             {jobsites.map(site => (
               <li 
                 key={site}
-                onClick={() => setFilterJobsite(site)}
+                onClick={() => selectSite(site)}
                 className={cn(
                   "px-3 py-2 rounded-md cursor-pointer text-sm transition-all",
                   filterJobsite === site 
@@ -120,12 +149,12 @@ export default function App() {
           </ul>
         </div>
 
-        <div className="pt-6 border-t border-slate-700">
-           <div className="flex gap-2 p-1 bg-slate-900 rounded-lg">
+        <div className="pt-6 border-t border-slate-700 mt-6 shrink-0">
+           <div className="grid grid-cols-2 gap-2 p-1 bg-slate-900 rounded-lg">
              <button
                 onClick={() => setView('dashboard')}
                 className={cn(
-                  "flex-1 py-1.5 text-xs font-medium rounded-md transition-all",
+                  "py-1.5 text-xs font-medium rounded-md transition-all",
                   view === 'dashboard' ? "bg-accent text-white" : "text-slate-400 hover:text-white"
                 )}
              >
@@ -134,7 +163,7 @@ export default function App() {
              <button
                 onClick={() => setView('table')}
                 className={cn(
-                  "flex-1 py-1.5 text-xs font-medium rounded-md transition-all",
+                  "py-1.5 text-xs font-medium rounded-md transition-all",
                   view === 'table' ? "bg-accent text-white" : "text-slate-400 hover:text-white"
                 )}
              >
@@ -145,120 +174,154 @@ export default function App() {
       </aside>
 
       {/* Main Content */}
-      <main className="flex-grow p-8 flex flex-col gap-6 overflow-hidden">
-        <header className="flex justify-between items-end flex-shrink-0">
-          <div>
-            <h1 className="text-2xl font-bold text-slate-900 tracking-tight">Tool Population Monitoring</h1>
-            <p className="text-sm text-slate-500">Data Source: docs.google.com (Real-time Sync)</p>
+      <main className="flex-grow flex flex-col h-full overflow-hidden">
+        <header className="p-4 sm:p-6 lg:p-8 flex items-center gap-4 bg-white/80 backdrop-blur-md border-b border-slate-200 sticky top-0 md:static">
+          <button 
+            className="lg:hidden p-2 text-slate-600 hover:bg-slate-100 rounded-xl"
+            onClick={() => setIsSidebarOpen(true)}
+          >
+            <Menu size={24} />
+          </button>
+          
+          <div className="flex-grow">
+            <h1 className="text-xl md:text-2xl font-bold text-slate-900 tracking-tight leading-none mb-1">
+              Monitoring Tools
+            </h1>
+            <p className="text-[10px] md:text-xs text-slate-500 uppercase font-bold tracking-widest truncate">
+              {filterJobsite} • G-Sheets Sync
+            </p>
           </div>
-          <div className="relative">
+
+          <div className="relative hidden sm:block">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
             <input
               type="text"
-              placeholder="Cari kode tool atau model..."
-              className="bg-white border border-slate-200 pl-10 pr-4 py-2 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-accent/20 focus:border-accent w-64 shadow-sm"
+              placeholder="Search tools..."
+              className="bg-slate-100/50 border border-slate-200 pl-10 pr-4 py-2 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-accent/20 focus:border-accent w-48 lg:w-64 transition-all"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
             />
           </div>
         </header>
 
-        {/* Stats Grid */}
-        <section className="grid grid-cols-4 gap-5 flex-shrink-0">
-          <StatCard label="Total Population" value={stats.total} icon={<Database size={20} />} trend="+0 unit" />
-          <StatCard label="Active Units" value={stats.baik} icon={<CheckCircle size={20} />} status="success" />
-          <StatCard label="Maintenance" value={stats.rusak} icon={<AlertTriangle size={20} />} status="warning" />
-          <StatCard label="Idle / Hilang" value={stats.hilang} icon={<HelpCircle size={20} />} status="danger" />
-        </section>
+        <div className="flex-grow overflow-y-auto p-4 sm:p-6 lg:p-8 space-y-6 lg:space-y-8">
+          {/* Mobile Search - Visible only on small screens */}
+          <div className="relative sm:hidden">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
+            <input
+              type="text"
+              placeholder="Cari kode tool atau model..."
+              className="bg-white border border-slate-200 pl-10 pr-4 py-3 rounded-xl text-sm w-full shadow-sm"
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+            />
+          </div>
 
-        {/* Data Section */}
-        <section className="flex-grow bg-white border border-slate-200 rounded-xl shadow-sm flex flex-col overflow-hidden">
-          <div className="px-6 py-4 border-b border-slate-200 flex justify-between items-center bg-slate-50/50">
-            <h2 className="text-sm font-semibold text-slate-700">Tool Detail - {filterJobsite}</h2>
-            <div className="text-[10px] font-mono text-slate-400 uppercase tracking-widest">
-              Table View
+          {/* Stats Grid */}
+          <section className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4 lg:gap-5">
+            <StatCard label="Total Population" value={stats.total} icon={<Database size={20} />} trend="+0 unit" />
+            <StatCard label="Active Units" value={stats.baik} icon={<CheckCircle size={20} />} status="success" />
+            <StatCard label="Maintenance" value={stats.rusak} icon={<AlertTriangle size={20} />} status="warning" />
+            <StatCard label="Idle / Hilang" value={stats.hilang} icon={<HelpCircle size={20} />} status="danger" />
+          </section>
+
+          {/* Data Section */}
+          <section className="bg-white border border-slate-200 rounded-2xl shadow-sm flex flex-col overflow-hidden">
+            <div className="px-6 py-4 border-b border-slate-200 flex justify-between items-center bg-slate-50/50">
+              <h2 className="text-sm font-bold text-slate-700 uppercase tracking-tight">Detail Asset: {filterJobsite}</h2>
+              <div className="text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em] hidden sm:block">
+                Mode: {view === 'dashboard' ? 'Insight' : 'Database'}
+              </div>
             </div>
-          </div>
-          
-          <div className="flex-grow overflow-auto">
-            <AnimatePresence mode="wait">
-              {view === 'dashboard' ? (
-                <motion.div
-                  key="dashboard"
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  exit={{ opacity: 0 }}
-                  className="grid grid-cols-2 gap-8 p-8 h-full items-start"
-                >
-                  <div className="h-[400px]">
-                    <h3 className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-4">Top Categories</h3>
-                    <ResponsiveContainer width="100%" height="80%">
-                      <BarChart data={categoryData} layout="vertical" margin={{ left: 60, right: 30 }}>
-                        <XAxis type="number" hide />
-                        <YAxis dataKey="name" type="category" tick={{ fontSize: 10, fill: '#64748b' }} width={60} />
-                        <Tooltip contentStyle={{ fontSize: '12px', borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }} />
-                        <Bar dataKey="value" fill="#2563eb" radius={[0, 4, 4, 0]} barSize={20} />
-                      </BarChart>
-                    </ResponsiveContainer>
-                  </div>
-                  <div className="h-[400px]">
-                    <h3 className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-4">Condition Summary</h3>
-                    <ResponsiveContainer width="100%" height="80%">
-                      <PieChart>
-                        <Pie
-                          data={conditionData}
-                          innerRadius={60}
-                          outerRadius={80}
-                          paddingAngle={5}
-                          dataKey="value"
-                        >
-                          {conditionData.map((entry, index) => (
-                            <Cell key={`cell-${index}`} fill={entry.color} />
-                          ))}
-                        </Pie>
-                        <Tooltip />
-                        <Legend wrapperStyle={{ fontSize: '10px', paddingTop: '20px' }} />
-                      </PieChart>
-                    </ResponsiveContainer>
-                  </div>
-                </motion.div>
-              ) : (
-                <motion.table
-                  key="table"
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  exit={{ opacity: 0 }}
-                  className="w-full text-left border-collapse"
-                >
-                  <thead className="sticky top-0 bg-slate-50/90 backdrop-blur-sm z-10 shadow-sm">
-                    <tr>
-                      <th className="px-6 py-3 text-[0.75rem] font-semibold text-slate-500 uppercase tracking-wider">Tool ID</th>
-                      <th className="px-6 py-3 text-[0.75rem] font-semibold text-slate-500 uppercase tracking-wider">Category</th>
-                      <th className="px-6 py-3 text-[0.75rem] font-semibold text-slate-500 uppercase tracking-wider">Name</th>
-                      <th className="px-6 py-3 text-[0.75rem] font-semibold text-slate-500 uppercase tracking-wider">Location</th>
-                      <th className="px-6 py-3 text-[0.75rem] font-semibold text-slate-500 uppercase tracking-wider">Status</th>
-                      <th className="px-6 py-3 text-[0.75rem] font-semibold text-slate-500 uppercase tracking-wider text-right">Quantity</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-100">
-                    {filteredData.map((item, idx) => (
-                      <tr key={`${item.no}-${idx}`} className="hover:bg-slate-50 transition-colors">
-                        <td className="px-6 py-3 font-semibold text-slate-900 border-b border-slate-100">{item.no || '-'}</td>
-                        <td className="px-6 py-3 text-slate-600 border-b border-slate-100">{item.category}</td>
-                        <td className="px-6 py-3 text-slate-900 font-medium border-b border-slate-100">{item.name}</td>
-                        <td className="px-6 py-3 text-slate-500 border-b border-slate-100">{item.location}</td>
-                        <td className="px-6 py-3 border-b border-slate-100">
-                          <StatusBadge condition={item.condition} />
-                        </td>
-                        <td className="px-6 py-3 text-right text-slate-900 font-mono border-b border-slate-100">{item.quantity} {item.unit}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </motion.table>
-              )}
-            </AnimatePresence>
-          </div>
-        </section>
+            
+            <div className="p-4 sm:p-6 lg:p-8 overflow-auto">
+              <AnimatePresence mode="wait">
+                {view === 'dashboard' ? (
+                  <motion.div
+                    key="dashboard"
+                    initial={{ opacity: 0, x: 20 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    exit={{ opacity: 0, x: -20 }}
+                    className="grid grid-cols-1 xl:grid-cols-2 gap-8 lg:gap-12"
+                  >
+                    <div className="h-[300px] sm:h-[400px]">
+                      <h3 className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-6 px-1">Top Tool Categories</h3>
+                      <ResponsiveContainer width="100%" height="90%">
+                        <BarChart data={categoryData} layout="vertical" margin={{ left: 60, right: 30 }}>
+                          <XAxis type="number" hide />
+                          <YAxis dataKey="name" type="category" tick={{ fontSize: 10, fill: '#64748b', fontWeight: 600 }} width={60} />
+                          <Tooltip 
+                            cursor={{ fill: '#f1f5f9' }}
+                            contentStyle={{ fontSize: '11px', borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)' }} 
+                          />
+                          <Bar dataKey="value" fill="#2563eb" radius={[0, 4, 4, 0]} barSize={20} />
+                        </BarChart>
+                      </ResponsiveContainer>
+                    </div>
+                    <div className="h-[300px] sm:h-[400px]">
+                      <h3 className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-6 px-1">Condition Distribution</h3>
+                      <ResponsiveContainer width="100%" height="90%">
+                        <PieChart>
+                          <Pie
+                            data={conditionData}
+                            innerRadius={70}
+                            outerRadius={100}
+                            paddingAngle={8}
+                            dataKey="value"
+                            stroke="none"
+                          >
+                            {conditionData.map((entry, index) => (
+                              <Cell key={`cell-${index}`} fill={entry.color} />
+                            ))}
+                          </Pie>
+                          <Tooltip />
+                          <Legend wrapperStyle={{ fontSize: '11px', fontWeight: 600, paddingTop: '30px' }} />
+                        </PieChart>
+                      </ResponsiveContainer>
+                    </div>
+                  </motion.div>
+                ) : (
+                  <motion.div
+                    key="table-container"
+                    initial={{ opacity: 0, x: -20 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    exit={{ opacity: 0, x: 20 }}
+                    className="overflow-x-auto -mx-4 sm:-mx-6 lg:-mx-8"
+                  >
+                    <table className="w-full text-left border-collapse min-w-[800px]">
+                      <thead className="bg-slate-50/80 sticky top-0 z-10">
+                        <tr>
+                          <th className="px-6 py-4 text-[0.7rem] font-bold text-slate-500 uppercase tracking-widest border-b border-slate-100">Tool ID</th>
+                          <th className="px-6 py-4 text-[0.7rem] font-bold text-slate-500 uppercase tracking-widest border-b border-slate-100">Category</th>
+                          <th className="px-6 py-4 text-[0.7rem] font-bold text-slate-500 uppercase tracking-widest border-b border-slate-100">Tool Name</th>
+                          <th className="px-6 py-4 text-[0.7rem] font-bold text-slate-500 uppercase tracking-widest border-b border-slate-100">Location</th>
+                          <th className="px-6 py-4 text-[0.7rem] font-bold text-slate-500 uppercase tracking-widest border-b border-slate-100">Condition</th>
+                          <th className="px-6 py-4 text-[0.7rem] font-bold text-slate-500 uppercase tracking-widest border-b border-slate-100 text-right">Stock</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-100">
+                        {filteredData.map((item, idx) => (
+                          <tr key={`${item.no}-${idx}`} className="hover:bg-slate-50/50 transition-colors group">
+                            <td className="px-6 py-4 font-bold text-slate-900 text-sm">{item.no || idx + 1}</td>
+                            <td className="px-6 py-4 text-slate-500 text-xs font-semibold">{item.category}</td>
+                            <td className="px-6 py-4 text-slate-900 font-bold text-sm">{item.name}</td>
+                            <td className="px-6 py-4 text-slate-500 text-xs font-medium">{item.location}</td>
+                            <td className="px-6 py-4">
+                              <StatusBadge condition={item.condition} />
+                            </td>
+                            <td className="px-6 py-4 text-right text-slate-900 font-mono text-xs font-bold bg-slate-50/30">
+                              {item.quantity} {item.unit}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </div>
+          </section>
+        </div>
       </main>
     </div>
   );
