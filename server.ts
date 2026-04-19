@@ -1,5 +1,4 @@
 import express from "express";
-import { createServer as createViteServer } from "vite";
 import path from "path";
 import { google } from "googleapis";
 import dotenv from "dotenv";
@@ -22,7 +21,7 @@ try {
     });
   }
 } catch (e) {
-  console.error("Failed to initialize Google Auth:", e);
+  console.error("Gagal memproses GOOGLE_SERVICE_ACCOUNT_CREDENTIALS:", e);
 }
 
 const sheets = google.sheets({ version: "v4", auth });
@@ -142,6 +141,8 @@ app.delete("/api/tools/:rowIdx", async (req, res) => {
 // --- VITE SETUP ---
 async function startServer() {
   if (process.env.NODE_ENV !== "production") {
+    // Muat Vite secara dinamis hanya saat pengembangan
+    const { createServer: createViteServer } = await import("vite");
     const vite = await createViteServer({
       server: { middlewareMode: true },
       appType: "spa",
