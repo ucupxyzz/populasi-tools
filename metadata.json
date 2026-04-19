@@ -1,0 +1,6 @@
+{
+  "name": "Jobsite Tool Monitoring",
+  "description": "A comprehensive tool population monitoring dashboard for multiple jobsites, featuring filters, status tracking, and data visualization from Google Sheets.",
+  "requestFramePermissions": [],
+  "majorCapabilities": []
+}
