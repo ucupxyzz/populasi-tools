@@ -73,14 +73,14 @@ export default function App() {
   };
 
   const handleDeleteTool = async (rowIdx: number) => {
-    if (!window.confirm('Are you sure you want to delete this tool?')) return;
+    if (!window.confirm('Apakah Anda yakin ingin menghapus unit ini?')) return;
     
     const result = await deleteTool(rowIdx);
     if (result.success) {
-      showNotification('Tool deleted successfully!', 'success');
+      showNotification('Unit berhasil dihapus!', 'success');
       loadData();
     } else {
-      showNotification(result.error || 'Failed to delete tool.', 'error');
+      showNotification(result.error || 'Gagal menghapus unit.', 'error');
     }
   };
 
@@ -88,33 +88,33 @@ export default function App() {
     if (editingLoan && editingLoan.rowIdx !== undefined) {
       const result = await updateLoan(editingLoan.rowIdx, newLoan);
       if (result.success) {
-        showNotification('Loan entry updated successfully!', 'success');
+        showNotification('Data peminjaman berhasil diperbarui!', 'success');
         setIsAddLoanModalOpen(false);
         setEditingLoan(null);
         loadData();
       } else {
-        showNotification(result.error || 'Failed to update loan entry.', 'error');
+        showNotification(result.error || 'Gagal memperbarui data peminjaman.', 'error');
       }
     } else {
       const result = await addLoan(newLoan);
       if (result.success) {
-        showNotification('Loan entry added successfully!', 'success');
+        showNotification('Data peminjaman berhasil ditambahkan!', 'success');
         setIsAddLoanModalOpen(false);
         loadData();
       } else {
-        showNotification(result.error || 'Failed to add loan entry.', 'error');
+        showNotification(result.error || 'Gagal menambah data peminjaman.', 'error');
       }
     }
   };
 
   const handleDeleteLoan = async (rowIdx: number) => {
-    if (!window.confirm('Are you sure you want to delete this loan entry?')) return;
+    if (!window.confirm('Apakah Anda yakin ingin menghapus data peminjaman ini?')) return;
     const result = await deleteLoan(rowIdx);
     if (result.success) {
-      showNotification('Loan entry deleted successfully!', 'success');
+      showNotification('Data peminjaman berhasil dihapus!', 'success');
       loadData();
     } else {
-      showNotification(result.error || 'Failed to delete loan entry.', 'error');
+      showNotification(result.error || 'Gagal menghapus data peminjaman.', 'error');
     }
   };
 
@@ -492,7 +492,7 @@ export default function App() {
                               <button 
                                 onClick={() => item.rowIdx !== undefined && handleDeleteTool(item.rowIdx)}
                                 className="p-2 text-slate-300 hover:text-rose-500 hover:bg-rose-50 rounded-lg transition-all"
-                                title="Delete Tool"
+                                title="Hapus Unit"
                               >
                                 <Trash2 size={16} />
                               </button>

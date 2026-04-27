@@ -108,6 +108,7 @@ app.delete("/api/loans/:rowIdx", async (req, res) => {
     if (!auth) throw new Error("Kredensial belum dikonfigurasi.");
     const rowIdx = parseInt(req.params.rowIdx);
     if (isNaN(rowIdx)) throw new Error("Index baris tidak valid.");
+    if (rowIdx < 0) throw new Error("Index baris tidak boleh negatif.");
 
     await ensureLoansSheet();
     const spreadsheet = await sheets.spreadsheets.get({ spreadsheetId: SPREADSHEET_ID });
@@ -115,6 +116,8 @@ app.delete("/api/loans/:rowIdx", async (req, res) => {
     const sheetId = sheet?.properties?.sheetId;
     
     if (sheetId === undefined || sheetId === null) throw new Error("Sheet 'Loans' tidak ditemukan di G-Sheet.");
+
+    console.log(`Menghapus baris pinjaman: index=${rowIdx} (baris=${rowIdx + 1}) pada sheetId=${sheetId}`);
 
     await sheets.spreadsheets.batchUpdate({
       spreadsheetId: SPREADSHEET_ID,
@@ -128,8 +131,8 @@ app.delete("/api/loans/:rowIdx", async (req, res) => {
     });
     res.json({ success: true });
   } catch (error: any) {
-    console.error("API Delete Loan Error:", error.message);
-    res.status(500).json({ error: error.message });
+    console.error("API Delete Loan ERROR:", error.message);
+    res.status(500).json({ error: `Gagal menghapus pinjaman: ${error.message}` });
   }
 });
 
@@ -143,6 +146,8 @@ app.put("/api/loans/:rowIdx", async (req, res) => {
     const { jobsite, loanDate, borrowerName, registerNo, toolName, status } = req.body;
     const updateRow = [jobsite, loanDate, borrowerName, registerNo, toolName, status];
 
+    console.log(`Mengupdate baris pinjaman: index=${rowIdx} (baris=${rowIdx + 1})`);
+
     await sheets.spreadsheets.values.update({
       spreadsheetId: SPREADSHEET_ID,
       range: `Loans!A${rowIdx + 1}:F${rowIdx + 1}`,
@@ -151,8 +156,8 @@ app.put("/api/loans/:rowIdx", async (req, res) => {
     });
     res.json({ success: true });
   } catch (error: any) {
-    console.error("API Update Loan Error:", error.message);
-    res.status(500).json({ error: error.message });
+    console.error("API Update Loan ERROR:", error.message);
+    res.status(500).json({ error: `Gagal mengupdate pinjaman: ${error.message}` });
   }
 });
 
@@ -161,7 +166,7 @@ app.get("/api/tools", async (req, res) => {
     const values = await getSheetData("A:Q");
     res.json(values);
   } catch (error: any) {
-    console.error("Fetch Error:", error.message);
+    console.error("Fetch Tools ERROR:", error.message);
     let userMessage = error.message;
     
     if (error.message.includes("Requested entity was not found") || error.code === 404) {
@@ -206,6 +211,7 @@ app.post("/api/tools", async (req, res) => {
 
     res.json({ success: true });
   } catch (error: any) {
+    console.error("API Add Tool ERROR:", error.message);
     res.status(500).json({ error: error.message });
   }
 });
@@ -214,17 +220,29 @@ app.delete("/api/tools/:rowIdx", async (req, res) => {
   try {
     if (!auth) throw new Error("Kredensial belum dikonfigurasi.");
     const rowIdx = parseInt(req.params.rowIdx);
+    if (isNaN(rowIdx)) throw new Error("Index baris tidak valid.");
+    if (rowIdx < 0) throw new Error("Index baris tidak boleh negatif.");
     
-    // Ambil metadata spreadsheet untuk mendapatkan sheetId yang benar
     const spreadsheet = await sheets.spreadsheets.get({
       spreadsheetId: SPREADSHEET_ID,
     });
     
-    const sheetId = spreadsheet.data.sheets?.[0]?.properties?.sheetId;
+    // Cari sheet yang bukan "Loans" untuk Tools, atau gunakan yang pertama jika hanya ada 1 atau tidak ketemu Loans
+    let sheetId = spreadsheet.data.sheets?.[0]?.properties?.sheetId;
+    
+    // Jika ada lebih dari satu sheet, coba cari yang title-nya tidak "Loans"
+    if (spreadsheet.data.sheets && spreadsheet.data.sheets.length > 1) {
+      const toolSheet = spreadsheet.data.sheets.find(s => s.properties?.title?.toLowerCase() !== "loans");
+      if (toolSheet) {
+        sheetId = toolSheet.properties?.sheetId;
+      }
+    }
     
     if (sheetId === undefined || sheetId === null) {
-      throw new Error("Tidak dapat menemukan ID Lembar (Sheet ID).");
+      throw new Error("Tidak dapat menemukan ID Lembar (Sheet ID) untuk Tools.");
     }
+
+    console.log(`Menghapus baris tool: index=${rowIdx} (baris=${rowIdx + 1}) pada sheetId=${sheetId}`);
 
     await sheets.spreadsheets.batchUpdate({
       spreadsheetId: SPREADSHEET_ID,
@@ -244,8 +262,8 @@ app.delete("/api/tools/:rowIdx", async (req, res) => {
     
     res.json({ success: true });
   } catch (error: any) {
-    console.error("Delete Error:", error.message);
-    res.status(500).json({ error: error.message || "Gagal menghapus data dari Google Sheets" });
+    console.error("API Delete Tool ERROR:", error.message);
+    res.status(500).json({ error: `Gagal menghapus data: ${error.message}` });
   }
 });
 
