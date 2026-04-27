@@ -12,29 +12,39 @@ import {
 import { 
   Search, Filter, ChevronDown, Download, Wrench, AlertTriangle, 
   CheckCircle, HelpCircle, LayoutDashboard, Database, MapPin,
-  Menu, X, Plus, Trash2, Save, XCircle
+  Menu, X, Plus, Trash2, Save, XCircle, Pencil
 } from 'lucide-react';
-import { fetchToolData, addTool, deleteTool } from './services/dataService';
-import { ToolData, JobsiteStats } from './types';
+import { 
+  fetchToolData, addTool, deleteTool,
+  fetchLoanData, addLoan, deleteLoan, updateLoan
+} from './services/dataService';
+import { ToolData, JobsiteStats, LoanData } from './types';
 import { cn } from './lib/utils';
 
 export default function App() {
   const [data, setData] = useState<ToolData[]>([]);
+  const [loansData, setLoansData] = useState<LoanData[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [filterJobsite, setFilterJobsite] = useState<string>('All Jobsites');
   const [searchTerm, setSearchTerm] = useState('');
-  const [view, setView] = useState<'dashboard' | 'table'>('dashboard');
+  const [view, setView] = useState<'dashboard' | 'table' | 'loans'>('dashboard');
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+  const [isAddLoanModalOpen, setIsAddLoanModalOpen] = useState(false);
+  const [editingLoan, setEditingLoan] = useState<LoanData | null>(null);
   const [notification, setNotification] = useState<{message: string, type: 'success' | 'error'} | null>(null);
 
   const loadData = async () => {
     setLoading(true);
     setError(null);
     try {
-      const result = await fetchToolData();
-      setData(result);
+      const [toolResult, loanResult] = await Promise.all([
+        fetchToolData(),
+        fetchLoanData()
+      ]);
+      setData(toolResult);
+      setLoansData(loanResult);
     } catch (err: any) {
       setError(err.message);
     } finally {
@@ -74,7 +84,40 @@ export default function App() {
     }
   };
 
-  // Close sidebar when clicking outside or switching sites on mobile
+  const handleAddLoan = async (newLoan: any) => {
+    if (editingLoan && editingLoan.rowIdx !== undefined) {
+      const result = await updateLoan(editingLoan.rowIdx, newLoan);
+      if (result.success) {
+        showNotification('Loan entry updated successfully!', 'success');
+        setIsAddLoanModalOpen(false);
+        setEditingLoan(null);
+        loadData();
+      } else {
+        showNotification(result.error || 'Failed to update loan entry.', 'error');
+      }
+    } else {
+      const result = await addLoan(newLoan);
+      if (result.success) {
+        showNotification('Loan entry added successfully!', 'success');
+        setIsAddLoanModalOpen(false);
+        loadData();
+      } else {
+        showNotification(result.error || 'Failed to add loan entry.', 'error');
+      }
+    }
+  };
+
+  const handleDeleteLoan = async (rowIdx: number) => {
+    if (!window.confirm('Are you sure you want to delete this loan entry?')) return;
+    const result = await deleteLoan(rowIdx);
+    if (result.success) {
+      showNotification('Loan entry deleted successfully!', 'success');
+      loadData();
+    } else {
+      showNotification(result.error || 'Failed to delete loan entry.', 'error');
+    }
+  };
+
   const selectSite = (site: string) => {
     setFilterJobsite(site);
     if (window.innerWidth < 1024) {
@@ -103,6 +146,23 @@ export default function App() {
       return matchJobsite && matchSearch;
     });
   }, [data, filterJobsite, searchTerm]);
+
+  const filteredLoansData = useMemo(() => {
+    return loansData.filter(loan => {
+      const matchJobsite = filterJobsite === 'All Jobsites' || loan.jobsite === filterJobsite;
+      const safeBorrower = (loan.borrowerName || '').toLowerCase();
+      const safeTool = (loan.toolName || '').toLowerCase();
+      const safeReg = (loan.registerNo || '').toLowerCase();
+      const safeSearch = (searchTerm || '').toLowerCase();
+
+      const matchSearch = searchTerm === '' || 
+        safeBorrower.includes(safeSearch) ||
+        safeTool.includes(safeSearch) ||
+        safeReg.includes(safeSearch);
+        
+      return matchJobsite && matchSearch;
+    });
+  }, [loansData, filterJobsite, searchTerm]);
 
   const stats = useMemo(() => {
     const total = filteredData.reduce((acc, curr) => acc + curr.quantity, 0);
@@ -143,7 +203,6 @@ export default function App() {
 
   return (
     <div className="flex h-screen w-screen overflow-hidden bg-slate-100 font-sans relative">
-      {/* Mobile Backdrop */}
       {isSidebarOpen && (
         <div 
           className="lg:hidden fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-40"
@@ -151,7 +210,6 @@ export default function App() {
         />
       )}
 
-      {/* Sidebar */}
       <aside className={cn(
         "fixed lg:relative w-[240px] bg-slate-800 text-white p-6 flex flex-col flex-shrink-0 h-full transition-transform duration-300 z-50",
         isSidebarOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"
@@ -208,30 +266,38 @@ export default function App() {
         </div>
 
         <div className="pt-6 border-t border-slate-700 mt-6 shrink-0">
-           <div className="grid grid-cols-2 gap-2 p-1 bg-slate-900 rounded-lg">
+           <div className="flex flex-col gap-2 p-1 bg-slate-900 rounded-lg">
              <button
                 onClick={() => setView('dashboard')}
                 className={cn(
-                  "py-1.5 text-xs font-medium rounded-md transition-all",
+                  "py-2 text-xs font-medium rounded-md transition-all",
                   view === 'dashboard' ? "bg-accent text-white" : "text-slate-400 hover:text-white"
                 )}
              >
-               Charts
+               Charts Insight
              </button>
              <button
                 onClick={() => setView('table')}
                 className={cn(
-                  "py-1.5 text-xs font-medium rounded-md transition-all",
+                  "py-2 text-xs font-medium rounded-md transition-all",
                   view === 'table' ? "bg-accent text-white" : "text-slate-400 hover:text-white"
                 )}
              >
-               Table
+               Database Tools
+             </button>
+             <button
+                onClick={() => setView('loans')}
+                className={cn(
+                  "py-2 text-xs font-medium rounded-md transition-all",
+                  view === 'loans' ? "bg-accent text-white" : "text-slate-400 hover:text-white"
+                )}
+             >
+               Peminjaman Tools
              </button>
            </div>
         </div>
       </aside>
 
-      {/* Main Content */}
       <main className="flex-grow flex flex-col h-full overflow-hidden">
         <header className="p-4 sm:p-6 lg:p-8 flex items-center gap-4 bg-white/80 backdrop-blur-md border-b border-slate-200 sticky top-0 md:static">
           <button 
@@ -286,7 +352,7 @@ export default function App() {
               </div>
             </motion.div>
           )}
-          {/* Notification Toast */}
+          
           <AnimatePresence>
             {notification && (
               <motion.div 
@@ -303,19 +369,18 @@ export default function App() {
               </motion.div>
             )}
           </AnimatePresence>
-          {/* Mobile Search - Visible only on small screens */}
+
           <div className="relative sm:hidden">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
             <input
               type="text"
-              placeholder="Cari kode tool atau model..."
+              placeholder="Search tools..."
               className="bg-white border border-slate-200 pl-10 pr-4 py-3 rounded-xl text-sm w-full shadow-sm"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
             />
           </div>
 
-          {/* Stats Grid */}
           <section className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4 lg:gap-5">
             <StatCard label="Total Population" value={stats.total} icon={<Database size={20} />} trend="+0 unit" />
             <StatCard label="Active Units" value={stats.baik} icon={<CheckCircle size={20} />} status="success" />
@@ -323,12 +388,24 @@ export default function App() {
             <StatCard label="Idle / Hilang" value={stats.hilang} icon={<HelpCircle size={20} />} status="danger" />
           </section>
 
-          {/* Data Section */}
           <section className="bg-white border border-slate-200 rounded-2xl shadow-sm flex flex-col overflow-hidden">
             <div className="px-6 py-4 border-b border-slate-200 flex justify-between items-center bg-slate-50/50">
-              <h2 className="text-sm font-bold text-slate-700 uppercase tracking-tight">Detail Asset: {filterJobsite}</h2>
-              <div className="text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em] hidden sm:block">
-                Mode: {view === 'dashboard' ? 'Insight' : 'Database'}
+              <h2 className="text-sm font-bold text-slate-700 uppercase tracking-tight">
+                {view === 'loans' ? 'Monitoring Peminjaman Tools' : `Detail Asset: ${filterJobsite}`}
+              </h2>
+              <div className="flex gap-2">
+                {view === 'loans' && (
+                  <button 
+                    onClick={() => setIsAddLoanModalOpen(true)}
+                    className="px-3 py-1.5 bg-accent hover:bg-blue-600 text-white rounded-lg text-[10px] font-bold transition-all shadow-sm flex items-center gap-2"
+                  >
+                    <Plus size={12} />
+                    Input Pinjaman
+                  </button>
+                )}
+                <div className="text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em] hidden sm:flex items-center">
+                  Mode: {view === 'dashboard' ? 'Insight' : view === 'table' ? 'Database' : 'Monitoring'}
+                </div>
               </div>
             </div>
             
@@ -342,9 +419,9 @@ export default function App() {
                     exit={{ opacity: 0, x: -20 }}
                     className="grid grid-cols-1 xl:grid-cols-2 gap-8 lg:gap-12"
                   >
-                    <div className="h-[300px] sm:h-[400px]">
+                    <div className="h-[300px] sm:h-[400px] min-h-0 min-w-0">
                       <h3 className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-6 px-1">Top Tool Categories</h3>
-                      <ResponsiveContainer width="100%" height="90%">
+                      <ResponsiveContainer width="100%" height="90%" minHeight={0}>
                         <BarChart data={categoryData} layout="vertical" margin={{ left: 60, right: 30 }}>
                           <XAxis type="number" hide />
                           <YAxis dataKey="name" type="category" tick={{ fontSize: 10, fill: '#64748b', fontWeight: 600 }} width={60} />
@@ -356,9 +433,9 @@ export default function App() {
                         </BarChart>
                       </ResponsiveContainer>
                     </div>
-                    <div className="h-[300px] sm:h-[400px]">
+                    <div className="h-[300px] sm:h-[400px] min-h-0 min-w-0">
                       <h3 className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-6 px-1">Condition Distribution</h3>
-                      <ResponsiveContainer width="100%" height="90%">
+                      <ResponsiveContainer width="100%" height="90%" minHeight={0}>
                         <PieChart>
                           <Pie
                             data={conditionData}
@@ -378,7 +455,7 @@ export default function App() {
                       </ResponsiveContainer>
                     </div>
                   </motion.div>
-                ) : (
+                ) : view === 'table' ? (
                   <motion.div
                     key="table-container"
                     initial={{ opacity: 0, x: -20 }}
@@ -425,6 +502,73 @@ export default function App() {
                       </tbody>
                     </table>
                   </motion.div>
+                ) : (
+                  <motion.div
+                    key="loans-container"
+                    initial={{ opacity: 0, x: -20 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    exit={{ opacity: 0, x: 20 }}
+                    className="overflow-x-auto -mx-4 sm:-mx-6 lg:-mx-8"
+                  >
+                    <table className="w-full text-left border-collapse min-w-[800px]">
+                      <thead className="bg-slate-50/80 sticky top-0 z-10">
+                        <tr>
+                          <th className="px-6 py-4 text-[0.7rem] font-bold text-slate-500 uppercase tracking-widest border-b border-slate-100">Jobsite</th>
+                          <th className="px-6 py-4 text-[0.7rem] font-bold text-slate-500 uppercase tracking-widest border-b border-slate-100">Tgl Pinjam</th>
+                          <th className="px-6 py-4 text-[0.7rem] font-bold text-slate-500 uppercase tracking-widest border-b border-slate-100">Nama Peminjam</th>
+                          <th className="px-6 py-4 text-[0.7rem] font-bold text-slate-500 uppercase tracking-widest border-b border-slate-100">No Reg Tools</th>
+                          <th className="px-6 py-4 text-[0.7rem] font-bold text-slate-500 uppercase tracking-widest border-b border-slate-100">Nama Tools</th>
+                          <th className="px-6 py-4 text-[0.7rem] font-bold text-slate-500 uppercase tracking-widest border-b border-slate-100">Status</th>
+                          <th className="px-6 py-4 text-[0.7rem] font-bold text-slate-500 uppercase tracking-widest border-b border-slate-100 text-center">Aksi</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-100">
+                        {filteredLoansData.map((loan, idx) => (
+                          <tr key={`${loan.rowIdx}-${idx}`} className="hover:bg-slate-50/50 transition-colors group">
+                            <td className="px-6 py-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest">{loan.jobsite}</td>
+                            <td className="px-6 py-4 text-xs font-medium text-slate-600">{loan.loanDate}</td>
+                            <td className="px-6 py-4 text-sm font-bold text-slate-900">{loan.borrowerName}</td>
+                            <td className="px-6 py-4 text-xs font-mono font-bold text-slate-500">{loan.registerNo}</td>
+                            <td className="px-6 py-4 text-sm font-bold text-slate-800">{loan.toolName}</td>
+                            <td className="px-6 py-4">
+                              <span className={cn(
+                                "px-2 py-1 rounded-full text-[10px] font-bold uppercase tracking-tight",
+                                loan.status === 'DIPINJAM' ? "bg-amber-100 text-amber-700" : "bg-emerald-100 text-emerald-700"
+                              )}>
+                                {loan.status}
+                              </span>
+                            </td>
+                            <td className="px-6 py-4 text-center">
+                              <div className="flex items-center justify-center gap-1 opacity-100 sm:opacity-0 group-hover:opacity-100 transition-opacity">
+                                <button 
+                                  onClick={() => {
+                                    setEditingLoan(loan);
+                                    setIsAddLoanModalOpen(true);
+                                  }}
+                                  className="p-2 text-slate-400 hover:text-blue-500 hover:bg-blue-50 rounded-lg transition-all"
+                                  title="Edit Pinjaman"
+                                >
+                                  <Pencil size={14} />
+                                </button>
+                                <button 
+                                  onClick={() => loan.rowIdx !== undefined && handleDeleteLoan(loan.rowIdx)}
+                                  className="p-2 text-slate-400 hover:text-rose-500 hover:bg-rose-50 rounded-lg transition-all"
+                                  title="Hapus Pinjaman"
+                                >
+                                  <Trash2 size={14} />
+                                </button>
+                              </div>
+                            </td>
+                          </tr>
+                        ))}
+                        {filteredLoansData.length === 0 && (
+                          <tr>
+                            <td colSpan={7} className="px-6 py-12 text-center text-slate-400 italic text-sm">Belum ada data peminjaman tools</td>
+                          </tr>
+                        )}
+                      </tbody>
+                    </table>
+                  </motion.div>
                 )}
               </AnimatePresence>
             </div>
@@ -432,7 +576,6 @@ export default function App() {
         </div>
       </main>
 
-      {/* Add Tool Modal */}
       <AnimatePresence>
         {isAddModalOpen && (
           <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
@@ -529,6 +672,134 @@ export default function App() {
                   >
                     <Save size={18} />
                     Simpan Ke Spreadsheet
+                  </button>
+                </div>
+              </form>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* Add Loan Modal */}
+      <AnimatePresence>
+        {isAddLoanModalOpen && (
+          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+            <motion.div 
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="absolute inset-0 bg-slate-900/60 backdrop-blur-md"
+              onClick={() => setIsAddLoanModalOpen(false)}
+            />
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.9, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.9, y: 20 }}
+              className="relative w-full max-w-md bg-white rounded-3xl shadow-2xl overflow-hidden"
+            >
+              <div className="px-8 py-6 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
+                <div>
+                  <h2 className="text-xl font-bold text-slate-900">{editingLoan ? 'Edit Data Peminjaman' : 'Input Data Peminjaman'}</h2>
+                  <p className="text-xs text-slate-500 font-medium tracking-tight">
+                    {editingLoan ? 'Ubah rincian peminjaman tools' : 'Catat peminjaman tools baru'}
+                  </p>
+                </div>
+                <button 
+                  onClick={() => {
+                    setIsAddLoanModalOpen(false);
+                    setEditingLoan(null);
+                  }} 
+                  className="p-2 text-slate-400 hover:text-slate-900"
+                >
+                  <X size={20} />
+                </button>
+              </div>
+              
+              <form 
+                className="p-8 space-y-5"
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  const formData = new FormData(e.currentTarget);
+                  handleAddLoan(Object.fromEntries(formData.entries()));
+                }}
+              >
+                <div className="space-y-1.5">
+                  <label className="text-[10px] uppercase font-bold text-slate-500 tracking-wider">Jobsite</label>
+                  <select 
+                    name="jobsite" 
+                    required 
+                    defaultValue={editingLoan?.jobsite || ''}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-sm focus:ring-2 focus:ring-accent/20 focus:border-accent"
+                  >
+                    <option value="" disabled>Pilih Jobsite</option>
+                    {jobsites.filter(s => s !== 'All Jobsites').map(s => <option key={s} value={s}>{s}</option>)}
+                  </select>
+                </div>
+                <div className="space-y-1.5">
+                  <label className="text-[10px] uppercase font-bold text-slate-500 tracking-wider">Tgl Pinjam</label>
+                  <input 
+                    name="loanDate" 
+                    type="date" 
+                    required 
+                    defaultValue={editingLoan?.loanDate || ''}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-sm" 
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <label className="text-[10px] uppercase font-bold text-slate-500 tracking-wider">Nama Peminjam</label>
+                  <input 
+                    name="borrowerName" 
+                    required 
+                    placeholder="Nama lengkap" 
+                    defaultValue={editingLoan?.borrowerName || ''}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-sm" 
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <label className="text-[10px] uppercase font-bold text-slate-500 tracking-wider">No Reg Tools</label>
+                  <input 
+                    name="registerNo" 
+                    required 
+                    placeholder="E.g. REG-001" 
+                    defaultValue={editingLoan?.registerNo || ''}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-sm" 
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <label className="text-[10px] uppercase font-bold text-slate-500 tracking-wider">Nama Tools</label>
+                  <input 
+                    name="toolName" 
+                    required 
+                    placeholder="E.g. Drill Machine" 
+                    defaultValue={editingLoan?.toolName || ''}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-sm" 
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <label className="text-[10px] uppercase font-bold text-slate-500 tracking-wider">Status</label>
+                  <select 
+                    name="status" 
+                    defaultValue={editingLoan?.status || 'DIPINJAM'}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-sm"
+                  >
+                    <option value="DIPINJAM">DIPINJAM</option>
+                    <option value="DIKEMBALIKAN">DIKEMBALIKAN</option>
+                  </select>
+                </div>
+
+                <div className="pt-4 flex gap-3">
+                  <button 
+                    type="button" 
+                    onClick={() => {
+                      setIsAddLoanModalOpen(false);
+                      setEditingLoan(null);
+                    }} 
+                    className="flex-1 py-3 text-sm font-bold text-slate-500 hover:bg-slate-50 rounded-xl transition-all"
+                  >
+                    Batal
+                  </button>
+                  <button type="submit" className="flex-[2] py-3 bg-accent text-white font-bold rounded-xl shadow-lg shadow-accent/20">
+                    {editingLoan ? 'Update Data' : 'Simpan Data'}
                   </button>
                 </div>
               </form>

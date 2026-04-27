@@ -1,36 +1,15 @@
-import { ToolData } from '../types';
+import { ToolData, LoanData } from '../types';
 
 export async function fetchToolData(): Promise<ToolData[]> {
   try {
     const response = await fetch('/api/tools');
-    
-    // Cek apakah responnya sukses dan tipenya JSON
-    const contentType = response.headers.get('content-type');
-    if (!contentType || !contentType.includes('application/json')) {
-      const text = await response.text();
-      // Jika yang diterima adalah HTML (biasanya diawali <), tampilkan pesan ramah
-      if (text.trim().startsWith('<')) {
-        throw new Error('Server mengirimkan halaman HTML, bukan data. Ini biasanya terjadi jika router API di Vercel belum aktif.');
-      }
-      throw new Error(`Server mengirimkan format yang salah (${contentType}): ${text.substring(0, 50)}...`);
-    }
-
     const dataRows = await response.json();
-
-    if (!response.ok) {
-      throw new Error(dataRows.error || 'Gagal mengambil data dari Google Sheets');
-    }
+    if (!response.ok) throw new Error(dataRows.error || 'Gagal mengambil data');
+    if (!Array.isArray(dataRows)) return [];
     
-    if (!Array.isArray(dataRows)) {
-      console.error('Expected array from server, got:', dataRows);
-      return [];
-    }
-    
-    // Process rows while keeping track of their original spreadsheet index (index in dataRows)
-    const tools: ToolData[] = dataRows
-      .map((row: any[], originalIndex: number) => ({ row, originalIndex }))
-      .slice(2) // Skip first 2 header rows
-      .filter((item: any) => item.row[1] && item.row[1].trim() !== '') // Filter empty rows based on Jobsite column
+    return dataRows.slice(2)
+      .map((row: any[], originalIndex: number) => ({ row, originalIndex: originalIndex + 2 }))
+      .filter((item: any) => item.row[1] && item.row[1].trim() !== '')
       .map((item: any) => {
         const { row, originalIndex } = item;
         let condition: ToolData['condition'] = 'UNKNOWN';
@@ -57,11 +36,72 @@ export async function fetchToolData(): Promise<ToolData[]> {
           remarks: row[16] || ''
         };
       });
-    
-    return tools;
-  } catch (error: any) {
-    console.error('Error fetching tool data:', error);
+  } catch (error) {
+    console.error('Error fetching tools:', error);
     throw error;
+  }
+}
+
+export async function fetchLoanData(): Promise<LoanData[]> {
+  try {
+    const response = await fetch('/api/loans');
+    const dataRows = await response.json();
+    if (!response.ok) throw new Error(dataRows.error || 'Gagal mengambil data pinjaman');
+    if (!Array.isArray(dataRows)) return [];
+
+    return dataRows.slice(1)
+      .map((row: any[], idx: number) => ({ row, originalIdx: idx + 1 }))
+      .filter((item: any) => item.row[2] && item.row[2].trim() !== '') // Filter based on Borrower Name (column C)
+      .map((item: any) => ({
+        rowIdx: item.originalIdx,
+        jobsite: item.row[0] || '',
+        loanDate: item.row[1] || '',
+        borrowerName: item.row[2] || '',
+        registerNo: item.row[3] || '',
+        toolName: item.row[4] || '',
+        status: (item.row[5] || 'DIPINJAM') as LoanData['status']
+      }));
+  } catch (error) {
+    console.error('Error fetching loans:', error);
+    throw error;
+  }
+}
+
+export async function addLoan(loan: Omit<LoanData, 'rowIdx'>): Promise<{ success: boolean; error?: string }> {
+  try {
+    const response = await fetch('/api/loans', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(loan)
+    });
+    const data = await response.json();
+    return { success: response.ok, error: data.error };
+  } catch (error: any) {
+    return { success: false, error: error.message };
+  }
+}
+
+export async function deleteLoan(rowIdx: number): Promise<{ success: boolean; error?: string }> {
+  try {
+    const response = await fetch(`/api/loans/${rowIdx}`, { method: 'DELETE' });
+    const data = await response.json();
+    return { success: response.ok, error: data.error };
+  } catch (error: any) {
+    return { success: false, error: error.message };
+  }
+}
+
+export async function updateLoan(rowIdx: number, loan: Omit<LoanData, 'rowIdx'>): Promise<{ success: boolean; error?: string }> {
+  try {
+    const response = await fetch(`/api/loans/${rowIdx}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(loan)
+    });
+    const data = await response.json();
+    return { success: response.ok, error: data.error };
+  } catch (error: any) {
+    return { success: false, error: error.message };
   }
 }
 
@@ -102,3 +142,4 @@ export async function deleteTool(rowIdx: number): Promise<{ success: boolean; er
     return { success: false, error: error.message || 'Koneksi ke server gagal' };
   }
 }
+

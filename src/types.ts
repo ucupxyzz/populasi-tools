@@ -24,3 +24,13 @@ export interface JobsiteStats {
   rusak: number;
   hilang: number;
 }
+
+export interface LoanData {
+  rowIdx?: number;
+  jobsite: string;
+  loanDate: string;
+  borrowerName: string;
+  registerNo: string;
+  toolName: string;
+  status: 'DIPINJAM' | 'DIKEMBALIKAN';
+}

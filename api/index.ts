@@ -36,20 +36,129 @@ try {
 
 const sheets = google.sheets({ version: "v4", auth });
 
-async function getSheetData() {
+async function getSheetData(range: string = "A:Q") {
   if (!auth) {
     throw new Error("Kredensial Google belum dikonfigurasi di Environment Variables Vercel.");
   }
   const response = await sheets.spreadsheets.values.get({
     spreadsheetId: SPREADSHEET_ID,
-    range: "A:Q",
+    range,
   });
   return response.data.values || [];
 }
 
+async function ensureLoansSheet() {
+  try {
+    const spreadsheet = await sheets.spreadsheets.get({ spreadsheetId: SPREADSHEET_ID });
+    const hasLoansSheet = spreadsheet.data.sheets?.some(s => s.properties?.title === "Loans");
+    
+    if (!hasLoansSheet) {
+      await sheets.spreadsheets.batchUpdate({
+        spreadsheetId: SPREADSHEET_ID,
+        requestBody: {
+          requests: [{
+            addSheet: { properties: { title: "Loans" } }
+          }]
+        }
+      });
+      // Header: Jobsite, Tgl Pinjam, Nama Peminjam, no reg Tools, Nama Tools, Status
+      await sheets.spreadsheets.values.update({
+        spreadsheetId: SPREADSHEET_ID,
+        range: "Loans!A1:F1",
+        valueInputOption: "USER_ENTERED",
+        requestBody: { values: [["Jobsite", "Tgl Pinjam", "Nama Peminjam", "no reg Tools", "Nama Tools", "Status"]] }
+      });
+    }
+  } catch (e) {
+    console.error("ensureLoansSheet error:", e);
+  }
+}
+
+app.get("/api/loans", async (req, res) => {
+  try {
+    await ensureLoansSheet();
+    const values = await getSheetData("Loans!A:F");
+    res.json(values);
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.post("/api/loans", async (req, res) => {
+  try {
+    if (!auth) throw new Error("Kredensial belum dikonfigurasi.");
+    await ensureLoansSheet();
+    const { jobsite, loanDate, borrowerName, registerNo, toolName, status } = req.body;
+    const newRow = [jobsite, loanDate, borrowerName, registerNo, toolName, status];
+
+    await sheets.spreadsheets.values.append({
+      spreadsheetId: SPREADSHEET_ID,
+      range: "Loans!A1",
+      valueInputOption: "USER_ENTERED",
+      requestBody: { values: [newRow] },
+    });
+    res.json({ success: true });
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.delete("/api/loans/:rowIdx", async (req, res) => {
+  try {
+    if (!auth) throw new Error("Kredensial belum dikonfigurasi.");
+    const rowIdx = parseInt(req.params.rowIdx);
+    if (isNaN(rowIdx)) throw new Error("Index baris tidak valid.");
+
+    await ensureLoansSheet();
+    const spreadsheet = await sheets.spreadsheets.get({ spreadsheetId: SPREADSHEET_ID });
+    const sheet = spreadsheet.data.sheets?.find(s => s.properties?.title?.toLowerCase() === "loans");
+    const sheetId = sheet?.properties?.sheetId;
+    
+    if (sheetId === undefined || sheetId === null) throw new Error("Sheet 'Loans' tidak ditemukan di G-Sheet.");
+
+    await sheets.spreadsheets.batchUpdate({
+      spreadsheetId: SPREADSHEET_ID,
+      requestBody: {
+        requests: [{
+          deleteDimension: {
+            range: { sheetId, dimension: "ROWS", startIndex: rowIdx, endIndex: rowIdx + 1 }
+          }
+        }]
+      },
+    });
+    res.json({ success: true });
+  } catch (error: any) {
+    console.error("API Delete Loan Error:", error.message);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.put("/api/loans/:rowIdx", async (req, res) => {
+  try {
+    if (!auth) throw new Error("Kredensial belum dikonfigurasi.");
+    const rowIdx = parseInt(req.params.rowIdx);
+    if (isNaN(rowIdx)) throw new Error("Index baris tidak valid.");
+
+    await ensureLoansSheet();
+    const { jobsite, loanDate, borrowerName, registerNo, toolName, status } = req.body;
+    const updateRow = [jobsite, loanDate, borrowerName, registerNo, toolName, status];
+
+    await sheets.spreadsheets.values.update({
+      spreadsheetId: SPREADSHEET_ID,
+      range: `Loans!A${rowIdx + 1}:F${rowIdx + 1}`,
+      valueInputOption: "USER_ENTERED",
+      requestBody: { values: [updateRow] },
+    });
+    res.json({ success: true });
+  } catch (error: any) {
+    console.error("API Update Loan Error:", error.message);
+    res.status(500).json({ error: error.message });
+  }
+});
+
 app.get("/api/tools", async (req, res) => {
   try {
-    const values = await getSheetData();
+    const values = await getSheetData("A:Q");
     res.json(values);
   } catch (error: any) {
     console.error("Fetch Error:", error.message);
